@@ -5,8 +5,10 @@ These CLIs need network access to the job portals themselves and `bun`
 installed in the container - see the backend Dockerfile.
 """
 from __future__ import annotations
+
 import json
 import subprocess
+
 from app.profile_loader import REPO_PATH
 
 SUPPORTED_PORTALS = [
@@ -132,7 +134,7 @@ def search(
 
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True,
+            cmd, capture_output=True, text=True, check=False,
             timeout=SEARCH_TIMEOUT_OVERRIDE.get(portal, 60), cwd=str(REPO_PATH),
         )
     except subprocess.TimeoutExpired as e:
@@ -179,7 +181,7 @@ def fetch_description(portal: str, external_id: str | None, url: str | None) -> 
     cmd = ["bun", "run", cli, "detail", arg, "--format", "json"]
     timeout = DETAIL_TIMEOUT_OVERRIDE.get(portal, 30)
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=str(REPO_PATH))
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=timeout, cwd=str(REPO_PATH))
     except subprocess.TimeoutExpired as e:
         raise ScrapeError(f"'{portal}' detail fetch timed out after {timeout}s") from e
     if result.returncode != 0:
