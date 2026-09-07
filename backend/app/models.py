@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
-from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
@@ -31,39 +30,39 @@ class DocType(str, enum.Enum):
 
 
 class Job(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     title: str
     company: str
-    url: Optional[str] = None
-    location: Optional[str] = None
-    portal: Optional[str] = None
-    external_id: Optional[str] = None        # portal's own id/slug - needed to fetch full detail
+    url: str | None = None
+    location: str | None = None
+    portal: str | None = None
+    external_id: str | None = None        # portal's own id/slug - needed to fetch full detail
     description: str = ""
     status: JobStatus = Field(default=JobStatus.scraped)
 
-    fit_score: Optional[int] = None          # 0-100
-    fit_reasoning: Optional[str] = None
-    fit_flags: Optional[str] = None          # JSON-encoded list of dealbreaker flags
+    fit_score: int | None = None          # 0-100
+    fit_reasoning: str | None = None
+    fit_flags: str | None = None          # JSON-encoded list of dealbreaker flags
 
-    notes: Optional[str] = None
+    notes: str | None = None
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    applied_at: Optional[datetime] = None
+    applied_at: datetime | None = None
 
 
 class Document(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     job_id: int = Field(foreign_key="job.id")
     doc_type: DocType
     content_markdown: str = ""
-    reviewer_notes: Optional[str] = None      # critique from the reviewer pass
+    reviewer_notes: str | None = None      # critique from the reviewer pass
     version: int = 1
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class Settings(SQLModel, table=True):
     """Single-row key/value settings table (profile text, model choice, etc.)."""
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     key: str = Field(index=True, unique=True)
     value: str = ""
