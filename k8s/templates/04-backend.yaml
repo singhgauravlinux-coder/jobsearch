@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: {{NAMESPACE}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: ai-job-search-backend }
+  template:
+    metadata:
+      labels: { app: ai-job-search-backend }
+    spec:
+      initContainers:
+        - name: sync-repo
+          # Reuses the backend image since it already has git + bun installed.
+          image: {{IMAGE_BACKEND}}
+          imagePullPolicy: {{IMAGE_PULL_POLICY}}
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+              # Needed when GIT_REPO_URL is a local file:// path mounted via
+              # hostPath below - git refuses repos it doesn't recognize as
+              # "owned" by the container's user otherwise.
+              git config --global --add safe.directory "*"
+              if [ -z "$GIT_REPO_URL" ]; then
+                echo "GIT_REPO_URL not set — skipping repo sync. The dashboard will still work,"
+                echo "but /api/scrape and the repo-based profile will be unavailable until you"
+                echo "set GIT_REPO_URL in the Secret and paste your profile in the UI instead."
+                exit 0
+              fi
+              if [ ! -d /repo/.git ]; then
+                if [ -n "$GIT_TOKEN" ]; then
+                  AUTH_URL=$(echo "$GIT_REPO_URL" | sed "s#https://#https://${GIT_TOKEN}@#")
+                  git clone --depth 1 "$AUTH_URL" /repo
+                else
+                  git clone --depth 1 "$GIT_REPO_URL" /repo
+                fi
+              else
+                git -C /repo pull --ff-only || echo "pull failed, continuing with existing checkout"
+              fi
+              cd /repo
+              for portal in jobbank-search jobdanmark-search jobindex-search jobnet-search linkedin-search freehire-search naukri-search; do
+                if [ -d ".agents/skills/$portal/cli" ]; then
+                  echo "bun install for $portal"
+                  (cd ".agents/skills/$portal/cli" && bun install) || echo "bun install failed for $portal, continuing"
+                fi
+              done
+          envFrom:
+            - configMapRef: { name: ai-job-search-config }
+            - secretRef: { name: ai-job-search-secrets }
+          volumeMounts:
+            - { name: repo, mountPath: /repo }
+            - { name: data, mountPath: /data }
+            # Optional: only used if GIT_REPO_URL is a local file:///local-repos/...
+            # path (single-node k3s, no registry/GitHub needed). Harmless if unused.
+            - { name: local-repo, mountPath: /local-repos, readOnly: true }
+      containers:
+        - name: backend
+          image: {{IMAGE_BACKEND}}
+          imagePullPolicy: {{IMAGE_PULL_POLICY}}
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef: { name: ai-job-search-config }
+            - secretRef: { name: ai-job-search-secrets }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: repo, mountPath: /repo }
+          readinessProbe:
+            httpGet: { path: /api/health, port: 8000 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /api/health, port: 8000 }
+            initialDelaySeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: ai-job-search-data } }
+        - { name: repo, persistentVolumeClaim: { claimName: ai-job-search-repo } }
+        # DirectoryOrCreate: won't fail pod scheduling if you're not using a
+        # local bare repo (registry mode, blank GIT_REPO_URL, or a real GitHub
+        # URL). Only matters when GIT_REPO_URL=file:///local-repos/...
+        - { name: local-repo, hostPath: { path: /home/ubuntu/local-repos, type: DirectoryOrCreate } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: {{NAMESPACE}}
+spec:
+  selector: { app: ai-job-search-backend }
+  ports:
+    - port: 8000
+      targetPort: 8000

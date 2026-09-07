@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-job-search-config
+  namespace: {{NAMESPACE}}
+data:
+  GEMINI_MODEL: "{{GEMINI_MODEL}}"
+  REPO_PATH: "/repo"
+  DATA_DIR: "/data"
+  # naukri-search's CLI (Playwright) downloads a Chromium build on first
+  # `bun install` - pointing this at the /data PVC (persistent) instead of
+  # the container's default cache path (ephemeral root filesystem) means
+  # it's only downloaded once, not on every pod restart.
+  PLAYWRIGHT_BROWSERS_PATH: "/data/.playwright-browsers"

@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dispatch — Job Search Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --glass-bg: rgba(255,255,255,0.08);
+    --glass-bg-soft: rgba(255,255,255,0.05);
+    --glass-border: rgba(255,255,255,0.28);
+    --glass-highlight: rgba(255,255,255,0.55);
+    --ink:#EAF0FB;
+    --ink-soft:#A9B7D6;
+    --line: rgba(255,255,255,0.14);
+    --amber:#FFB454;
+    --amber-soft:rgba(255,180,84,0.18);
+    --sage:#5EE6A8;
+    --sage-soft:rgba(94,230,168,0.16);
+    --cancel:#FF7A7A;
+    --cancel-soft:rgba(255,122,122,0.16);
+    --violet:#9C8BFF;
+    --blue:#6FB3FF;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;}
+  body{
+    margin:0;font-family:'Space Grotesk',sans-serif;color:var(--ink);
+    background:
+      radial-gradient(1100px 700px at 12% -10%, #3a2e6e 0%, transparent 55%),
+      radial-gradient(900px 650px at 105% 10%, #1c5f83 0%, transparent 55%),
+      radial-gradient(1000px 800px at 40% 120%, #6a2657 0%, transparent 55%),
+      linear-gradient(160deg, #0c0f22 0%, #131735 45%, #0d1330 100%);
+    background-attachment:fixed;
+    min-height:100vh;
+    position:relative;
+  }
+  body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(2px 2px at 20% 30%, rgba(255,255,255,.5) 0, transparent 60%),
+      radial-gradient(2px 2px at 70% 65%, rgba(255,255,255,.35) 0, transparent 60%),
+      radial-gradient(1.5px 1.5px at 85% 20%, rgba(255,255,255,.4) 0, transparent 60%),
+      radial-gradient(1.5px 1.5px at 45% 85%, rgba(255,255,255,.3) 0, transparent 60%);
+    opacity:.5;
+  }
+  code,.mono{font-family:'IBM Plex Mono',monospace;}
+
+  /* --- glass primitive --- */
+  .glass{
+    background:linear-gradient(155deg, var(--glass-bg) 0%, var(--glass-bg-soft) 100%);
+    backdrop-filter: blur(22px) saturate(160%);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    border:1px solid var(--glass-border);
+    border-radius:18px;
+    box-shadow:
+      0 20px 50px -18px rgba(0,0,0,0.55),
+      inset 0 1px 0 rgba(255,255,255,0.35),
+      inset 0 0 40px rgba(255,255,255,0.02);
+    position:relative;
+  }
+  .glass::before{
+    content:'';position:absolute;top:0;left:14px;right:14px;height:1px;
+    background:linear-gradient(90deg, transparent, var(--glass-highlight), transparent);
+    opacity:.6;
+  }
+
+  .app{display:grid;grid-template-columns:236px 1fr;min-height:100vh;position:relative;z-index:1;gap:22px;padding:22px;}
+
+  .rail{
+    background:linear-gradient(165deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border:1px solid var(--glass-border);
+    border-radius:20px;
+    box-shadow:0 25px 60px -20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.35);
+    color:var(--ink);padding:26px 0;display:flex;flex-direction:column;height:calc(100vh - 44px);position:sticky;top:22px;
+  }
+  .rail .brand{padding:0 22px 22px 22px;border-bottom:1px solid var(--line);margin-bottom:12px;}
+  .rail .brand .mark{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;color:var(--amber);text-shadow:0 0 12px rgba(255,180,84,.5);}
+  .rail .brand h1{font-size:21px;margin:6px 0 2px;font-weight:700;background:linear-gradient(120deg,#fff,#b9c7ef);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .rail .brand p{font-size:12px;color:var(--ink-soft);margin:0;}
+  .rail nav{display:flex;flex-direction:column;padding-top:8px;gap:4px;padding-left:12px;padding-right:12px;}
+  .rail nav button{all:unset;cursor:pointer;padding:12px 14px;font-size:14px;color:var(--ink-soft);border-radius:12px;display:flex;align-items:center;gap:10px;transition:transform .15s ease, background .15s ease, color .15s ease;}
+  .rail nav button .n{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6b7aa1;width:16px;}
+  .rail nav button:hover{background:rgba(255,255,255,0.08);color:#fff;transform:translateX(3px);}
+  .rail nav button.active{
+    background:linear-gradient(120deg, rgba(156,139,255,0.35), rgba(111,179,255,0.18));
+    color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,0.3), 0 8px 20px -8px rgba(111,90,255,.5);
+  }
+  .rail nav button.active .n{color:var(--amber);}
+  .rail .foot{margin-top:auto;padding:16px 22px 0;font-size:11px;color:var(--ink-soft);border-top:1px solid var(--line);}
+
+  main{padding:6px 6px 60px;max-width:1180px;position:relative;z-index:1;min-width:0;}
+  h2.pagehead{font-size:24px;margin:0 0 4px;font-weight:700;letter-spacing:-.01em;}
+  .sub{color:var(--ink-soft);font-size:14px;margin:0 0 28px;}
+
+  .grid{display:grid;gap:18px;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:30px;}
+  .stat{padding:18px 20px;transition:transform .2s ease;}
+  .stat:hover{transform:translateY(-3px);}
+  .stat.clickable:hover{box-shadow:0 0 0 1px var(--violet), 0 20px 50px -18px rgba(0,0,0,0.55);}
+  .stat .v{font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:600;background:linear-gradient(120deg,#fff,#9fb4e8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .stat .l{font-size:12px;color:var(--ink-soft);margin-top:6px;}
+
+  .panel{padding:24px;margin-bottom:20px;}
+  .panel h3{margin:0 0 14px;font-size:15px;font-weight:600;color:#fff;}
+
+  label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:6px;margin-top:14px;}
+  label:first-child{margin-top:0;}
+  input,select,textarea{
+    width:100%;padding:10px 12px;border:1px solid var(--line);
+    background:rgba(255,255,255,0.06);backdrop-filter:blur(6px);
+    font-family:inherit;font-size:14px;color:var(--ink);border-radius:10px;
+  }
+  input::placeholder,textarea::placeholder{color:#7a89ad;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--violet);box-shadow:0 0 0 3px rgba(156,139,255,0.25);}
+  select option{background:#1a1f3d;color:#fff;}
+  textarea{resize:vertical;min-height:90px;}
+  .row{display:flex;gap:12px;align-items:end;flex-wrap:wrap;}
+  .row > div{flex:1;min-width:160px;}
+
+  button.btn, a.btn{
+    all:unset;cursor:pointer;color:#0e1122;padding:11px 20px;font-size:13px;font-weight:700;
+    margin-top:16px;display:inline-block;border-radius:12px;letter-spacing:.01em;
+    background:linear-gradient(135deg, var(--amber), #ff8f6b);
+    box-shadow:0 10px 26px -10px rgba(255,143,107,.65), inset 0 1px 0 rgba(255,255,255,.6);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  button.btn:hover, a.btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px -10px rgba(255,143,107,.8), inset 0 1px 0 rgba(255,255,255,.6);}
+  button.btn.secondary, a.btn.secondary{
+    background:rgba(255,255,255,0.08);color:#fff;border:1px solid var(--glass-border);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.2);backdrop-filter:blur(10px);
+  }
+  button.btn.secondary:hover, a.btn.secondary:hover{background:rgba(255,255,255,0.16);}
+  button.btn:disabled{opacity:.4;cursor:default;transform:none;}
+  button.btn.small, a.btn.small{padding:7px 14px;font-size:12px;margin-top:0;}
+
+  .stamp{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.05em;padding:4px 9px;border-radius:8px;border:1px solid currentColor;text-transform:uppercase;backdrop-filter:blur(6px);}
+  .st-scraped{color:var(--ink-soft);background:rgba(255,255,255,0.06);}
+  .st-evaluated{color:var(--amber);background:var(--amber-soft);}
+  .st-drafted{color:var(--violet);background:rgba(156,139,255,0.16);}
+  .st-applied{color:var(--blue);background:rgba(111,179,255,0.16);}
+  .st-interview{color:var(--sage);background:var(--sage-soft);}
+  .st-offer{color:#22e0a3;background:rgba(34,224,163,0.18);}
+  .st-rejected{color:var(--cancel);background:var(--cancel-soft);}
+  .st-withdrawn{color:#c3c9dc;background:rgba(255,255,255,0.06);}
+
+  table{width:100%;border-collapse:collapse;}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);border-bottom:1px solid var(--line);padding:10px 14px;}
+  td{padding:14px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:top;}
+  tr.jobrow{cursor:pointer;transition:background .15s ease;}
+  tr.jobrow:hover{background:rgba(255,255,255,0.06);}
+  .fit{font-family:'IBM Plex Mono',monospace;font-weight:600;color:#fff;}
+
+  .board{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:14px;overflow-x:auto;padding-bottom:6px;}
+  .col{min-height:130px;overflow:hidden;}
+  .col[data-filter-status]:hover{box-shadow:0 0 0 1px var(--violet), 0 20px 50px -18px rgba(0,0,0,0.55);}
+  .col h4{margin:0;padding:12px 14px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line);color:var(--ink-soft);}
+  .col .card{padding:12px 14px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;transition:background .15s ease, transform .15s ease;color:var(--ink);}
+  .col .card:hover{background:rgba(255,255,255,0.08);transform:translateY(-1px);}
+  .col .card .co{color:var(--ink-soft);font-size:12px;margin-top:2px;}
+
+  .backlink{all:unset;cursor:pointer;color:var(--ink-soft);font-size:13px;margin-bottom:14px;display:inline-block;}
+  .backlink:hover{color:#fff;}
+
+  .docwrap{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .menuBtn{display:none;}
+
+  /* ============================== RESPONSIVE ============================== */
+  @media (max-width:1100px){
+    .board{grid-template-columns:repeat(5,minmax(140px,1fr));}
+  }
+  @media (max-width:900px){
+    .docwrap{grid-template-columns:1fr}
+    .board{grid-template-columns:repeat(4,minmax(140px,1fr));}
+    .app{grid-template-columns:1fr;padding:14px;gap:14px;}
+    .rail{position:relative;top:0;height:auto;}
+  }
+  @media (max-width:640px){
+    .app{padding:10px;gap:10px;}
+    main{padding:2px 2px 40px;}
+    h2.pagehead{font-size:20px;}
+    .sub{font-size:13px;margin-bottom:18px;}
+    .panel{padding:16px;}
+    .board{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+    .cards{grid-template-columns:repeat(2,minmax(120px,1fr));gap:10px;}
+    .stat .v{font-size:22px;}
+    .row{gap:10px;}
+    .row > div{min-width:0;flex-basis:100%;}
+    table{font-size:12.5px;}
+    th,td{padding:8px 10px;}
+    button.btn, a.btn{padding:11px 16px;font-size:13px;width:100%;text-align:center;box-sizing:border-box;}
+    button.btn.small, a.btn.small{width:auto;}
+    .row button.btn{width:auto;}
+
+    /* Rail becomes a top bar: brand + horizontally-scrolling icon-row nav,
+       collapsible via the hamburger toggle so it doesn't eat vertical space. */
+    .rail{padding:14px 0;}
+    .rail .brand{padding:0 16px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;border-bottom:none;}
+    .rail .brand-text{display:flex;flex-direction:column;}
+    .menuBtn{
+      display:flex;align-items:center;justify-content:center;
+      all:unset;cursor:pointer;width:34px;height:34px;border-radius:10px;
+      background:rgba(255,255,255,0.08);border:1px solid var(--glass-border);
+      color:#fff;font-size:16px;
+    }
+    .rail nav{
+      flex-direction:row;overflow-x:auto;-webkit-overflow-scrolling:touch;
+      padding:0 12px 4px;gap:6px;max-height:0;opacity:0;
+      transition:max-height .2s ease, opacity .2s ease, padding .2s ease;
+    }
+    .rail.navOpen nav{max-height:200px;opacity:1;padding:4px 12px 10px;}
+    .rail nav button{flex:0 0 auto;padding:10px 12px;white-space:nowrap;}
+    .rail nav button:hover{transform:none;}
+    .rail .foot{display:none;}
+  }
+  @media (max-width:420px){
+    .board{grid-template-columns:1fr;}
+    .cards{grid-template-columns:1fr 1fr;}
+  }
+  /* ========================================================================= */
+  .doc textarea{min-height:360px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.55;}
+  .notice{background:var(--amber-soft);border:1px solid rgba(255,180,84,.5);padding:13px 16px;font-size:13px;margin-bottom:18px;border-radius:12px;backdrop-filter:blur(10px);color:#ffe0b3;}
+  .notice.err{background:var(--cancel-soft);border-color:rgba(255,122,122,.5);color:#ffd3d3;}
+  .flag{display:inline-block;background:var(--cancel-soft);color:var(--cancel);border:1px solid rgba(255,122,122,.5);border-radius:7px;font-size:11px;padding:3px 8px;margin:2px 4px 0 0;}
+  .empty{color:var(--ink-soft);font-size:13px;padding:20px 0;}
+  .muted{color:var(--ink-soft);}
+  .hint{font-size:11px;color:var(--ink-soft);margin-top:4px;}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.25);border-top-color:var(--amber);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  ::-webkit-scrollbar{height:8px;width:8px;}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:8px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail glass" id="rail">
+    <div class="brand">
+      <div class="brand-text">
+        <div class="mark">DISPATCH</div>
+        <h1>AI Job Search</h1>
+        <p>tracking desk</p>
+      </div>
+      <button class="menuBtn" id="menuBtn" aria-label="Toggle menu">☰</button>
+    </div>
+    <nav id="nav">
+      <button data-view="board"><span class="n">01</span> Board</button>
+      <button data-view="jobs"><span class="n">02</span> Jobs</button>
+      <button data-view="scrape"><span class="n">03</span> Scrape</button>
+      <button data-view="analytics"><span class="n">04</span> Analytics</button>
+      <button data-view="settings"><span class="n">05</span> Profile</button>
+      <button data-view="backups"><span class="n">06</span> Backups</button>
+    </nav>
+    <div class="foot">Backend: <span id="healthDot">checking…</span></div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<script>
+const API = '/api';
+const STATUSES = ['scraped','evaluated','drafted','applied','interview','offer','rejected','withdrawn'];
+// Portals whose CLI requires a location to run at all (search fails without one).
+const LOCATION_REQUIRED_PORTALS = ['linkedin-search'];
+let state = { view: 'board', jobId: null, jobStatusFilter: null };
+
+async function api(path, opts={}) {
+  const res = await fetch(API + path, {
+    headers: {'Content-Type':'application/json'},
+    ...opts,
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json()).detail || detail; } catch(e){}
+    throw new Error(detail);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function downloadText(filename, content){
+  const blob = new Blob([content], {type:'text/markdown;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function safeFilename(s){ return (s||'untitled').replace(/[^a-z0-9\-]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,80); }
+function fmtDate(s){ return s ? new Date(s).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '—'; }
+
+function setNav(){
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active', b.dataset.view===state.view));
+}
+document.getElementById('nav').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  state.view = b.dataset.view; state.jobId = null; state.jobStatusFilter = null;
+  document.getElementById('rail').classList.remove('navOpen');
+  render();
+});
+
+const menuBtn = document.getElementById('menuBtn');
+if (menuBtn) menuBtn.addEventListener('click', ()=>{
+  document.getElementById('rail').classList.toggle('navOpen');
+});
+
+async function checkHealth(){
+  const dot = document.getElementById('healthDot');
+  try{
+    const h = await api('/health');
+    dot.textContent = h.repo_mounted ? 'connected · repo mounted' : 'connected · no repo mounted';
+  }catch(e){ dot.textContent = 'unreachable'; }
+}
+
+async function render(){
+  setNav();
+  const main = document.getElementById('main');
+  main.innerHTML = '<p class="empty">Loading…</p>';
+  try{
+    if (state.view === 'board') main.innerHTML = await viewBoard();
+    else if (state.view === 'jobs') main.innerHTML = await viewJobs();
+    else if (state.view === 'scrape') main.innerHTML = await viewScrape();
+    else if (state.view === 'analytics') main.innerHTML = await viewAnalytics();
+    else if (state.view === 'settings') main.innerHTML = await viewSettings();
+    else if (state.view === 'backups') main.innerHTML = await viewBackups();
+    else if (state.view === 'detail') main.innerHTML = await viewDetail(state.jobId);
+    wireView();
+  } catch(e){
+    main.innerHTML = `<div class="notice err">Couldn't load: ${esc(e.message)}</div>`;
+  }
+}
+
+// ---------------------------------------------------------------- BOARD ---
+async function viewBoard(){
+  const jobs = await api('/jobs');
+  const cols = STATUSES.map(s=>{
+    const items = jobs.filter(j=>j.status===s);
+    return `<div class="col glass">
+      <h4>${s} (${items.length})</h4>
+      ${items.map(j=>`<div class="card" data-open="${j.id}">
+        <div>${esc(j.title)}</div>
+        <div class="co">${esc(j.company)}${j.fit_score!=null?' · fit '+j.fit_score:''}</div>
+      </div>`).join('') || '<div class="card muted">—</div>'}
+    </div>`;
+  }).join('');
+  return `<h2 class="pagehead">Board</h2><p class="sub">Every job, sorted by where it sits in the pipeline. Click a card to open it.</p>
+  <div class="board">${cols}</div>`;
+}
+
+// ----------------------------------------------------------------- JOBS ---
+async function viewJobs(){
+  const jobs = await api(state.jobStatusFilter ? `/jobs?status=${encodeURIComponent(state.jobStatusFilter)}` : '/jobs');
+  const rows = jobs.map(j=>`
+    <tr class="jobrow" data-open="${j.id}">
+      <td>${esc(j.title)}<div class="muted" style="font-size:12px">${esc(j.location||'')}</div></td>
+      <td>${esc(j.company)}</td>
+      <td>${esc(j.portal||'manual')}</td>
+      <td class="fit">${j.fit_score!=null ? j.fit_score : '—'}</td>
+      <td><span class="stamp st-${j.status}">${j.status}</span></td>
+      <td>${fmtDate(j.created_at)}</td>
+    </tr>`).join('');
+  const filterChip = state.jobStatusFilter
+    ? `<div class="notice" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Filtered by status: <strong>${esc(state.jobStatusFilter)}</strong></span>
+        <button class="btn small secondary" id="clearFilter">Clear ✕</button>
+      </div>`
+    : '';
+  return `<h2 class="pagehead">Jobs</h2><p class="sub">${jobs.length} tracked${state.jobStatusFilter?' (filtered)':''}.</p>
+    ${filterChip}
+    <div class="panel glass" style="padding:0;overflow:hidden;">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Title</th><th>Company</th><th>Portal</th><th>Fit</th><th>Status</th><th>Added</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6" class="empty">No jobs' + (state.jobStatusFilter?' with this status.':' yet — scrape or add one manually.') + '</td></tr>'}</tbody>
+      </table>
+      </div>
+    </div>
+    <button class="btn secondary" id="addManual">+ Add job manually</button>
+    <button class="btn secondary" id="deleteAllJobs" style="border-color:rgba(255,122,122,.5);color:var(--cancel);">Delete all jobs</button>`;
+}
+
+// --------------------------------------------------------------- SCRAPE ---
+async function viewScrape(){
+  const {portals} = await api('/portals');
+  return `<h2 class="pagehead">Scrape</h2><p class="sub">Runs the portal search CLIs from the repo (requires the repo checkout mounted + network access to the portal).</p>
+  <div class="panel glass">
+    <div class="row">
+      <div><label>Portal</label><select id="portal">${portals.map(p=>`<option>${p}</option>`).join('')}</select></div>
+      <div><label>Query</label><input id="query" placeholder='e.g. "python aarhus"'></div>
+      <div><label>Location <span id="locReqTag" style="display:none;color:var(--cancel);">(required)</span></label><input id="location" placeholder='e.g. "Copenhagen, Denmark"'></div>
+      <div><label>Limit</label><input id="limit" type="number" value="20"></div>
+      <div><label>Posted within (days, optional)</label><input id="age" type="number" placeholder="7"></div>
+    </div>
+    <div class="hint">Location isn't supported by every portal — unsupported filters are skipped, not errored.</div>
+    <button class="btn" id="runScrape">Search portal</button>
+    <div id="scrapeResult"></div>
+  </div>`;
+}
+
+// ------------------------------------------------------------ ANALYTICS ---
+async function viewAnalytics(){
+  const a = await api('/analytics');
+  const stat = (v,l,filterStatus)=>`<div class="stat glass${filterStatus!==undefined?' clickable':''}"${filterStatus!==undefined?` data-filter-status="${filterStatus===null?'':esc(filterStatus)}"`:''} style="${filterStatus!==undefined?'cursor:pointer;':''}"><div class="v">${v==null?'—':v}</div><div class="l">${l}</div></div>`;
+  const funnel = STATUSES.map(s=>`<div class="col glass" data-filter-status="${s}" style="cursor:pointer;"><h4>${s}</h4><div class="card" style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;">${a.by_status[s]}</div></div>`).join('');
+  return `<h2 class="pagehead">Analytics</h2><p class="sub">Funnel across every tracked job. Click any number to see those jobs.</p>
+  <div class="cards">
+    ${stat(a.total_jobs,'Jobs tracked', null)}
+    ${stat(a.applications_sent,'Applications sent', 'applied')}
+    ${stat(a.response_rate!=null?Math.round(a.response_rate*100)+'%':null,'Response rate')}
+    ${stat(a.avg_fit_score,'Avg. fit score')}
+    ${stat(a.interviews,'Interviews', 'interview')}
+    ${stat(a.offers,'Offers', 'offer')}
+  </div>
+  <div class="board">${funnel}</div>`;
+}
+
+// -------------------------------------------------------------- SETTINGS --
+async function viewSettings(){
+  const s = await api('/settings');
+  return `<h2 class="pagehead">Profile</h2><p class="sub">This is the context sent to Claude for fit evaluation and drafting. Model: <code>${esc(s.model)}</code></p>
+  ${s.repo_mounted ? `<div class="notice">Repo is mounted — CLAUDE.md and your methodology files load automatically unless you override below.</div>` : `<div class="notice">No repo checkout mounted at REPO_PATH — paste your profile below (CV summary, evaluation criteria, writing style).</div>`}
+  <div class="panel glass">
+    <label>Profile override (leave blank to use the mounted repo's CLAUDE.md)</label>
+    <textarea id="profileText" style="min-height:380px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;">${esc(s.profile)}</textarea>
+    <button class="btn" id="saveProfile">Save profile</button>
+    <span id="saveMsg" class="muted" style="margin-left:10px;"></span>
+  </div>
+  <p class="muted" style="font-size:12.5px;">Looking for backups? See the <a href="#" data-open-backups style="color:var(--amber);">Backups</a> tab.</p>`;
+}
+
+// -------------------------------------------------------------- BACKUPS --
+function fmtBytes(n){
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  return (n/1024/1024).toFixed(1) + ' MB';
+}
+function fmtDateTime(s){ return s ? new Date(s).toLocaleString() : '—'; }
+
+async function viewBackups(){
+  const backups = await api('/backups');
+  const rows = backups.map(b=>`
+    <tr>
+      <td><code class="mono" style="font-size:12px;">${esc(b.name)}</code></td>
+      <td>${fmtBytes(b.size_bytes)}</td>
+      <td>${fmtDateTime(b.created_at)}</td>
+      <td style="white-space:nowrap;">
+        <a class="btn small secondary" href="/api/backups/${encodeURIComponent(b.name)}/download" download>Download</a>
+        <button class="btn small secondary restoreBtn" data-name="${esc(b.name)}">Restore</button>
+        <button class="btn small secondary deleteBtn" data-name="${esc(b.name)}">Delete</button>
+      </td>
+    </tr>`).join('');
+
+  return `<h2 class="pagehead">Backups</h2><p class="sub">Snapshots of the live database, stored on the same volume. Taken with SQLite's online backup API, so it's safe to run while the app is in use.</p>
+
+  <div class="panel glass">
+    <div class="row" style="align-items:end;">
+      <div><label>Label (optional)</label><input id="backupLabel" placeholder="e.g. before-cleanup"></div>
+      <div><button class="btn" id="createBackup">Create backup now</button></div>
+    </div>
+    <div id="backupMsg"></div>
+  </div>
+
+  <div class="panel glass" style="padding:0;overflow:hidden;">
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>File</th><th>Size</th><th>Created</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4" class="empty">No backups yet — create one above.</td></tr>'}</tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="panel glass">
+    <h3>Restore from a file</h3>
+    <p class="sub" style="margin-top:-8px;">Upload a <code>.db</code> file (from this tool, or from <code>backup.sh</code>) and apply it directly — this overwrites everything currently in the dashboard.</p>
+    <input type="file" id="restoreFile" accept=".db">
+    <button class="btn secondary" id="restoreUpload" style="margin-top:12px;">Restore from uploaded file</button>
+    <div id="restoreMsg"></div>
+  </div>
+
+  <div class="panel glass">
+    <h3>JSON export</h3>
+    <p class="sub" style="margin-top:-8px;">A human-readable dump of every job, document, and your profile. Handy for spot-checking or migrating elsewhere — not a restore mechanism (use the backups above for that).</p>
+    <a class="btn secondary" href="/api/export" download>Export all data (JSON)</a>
+  </div>`;
+}
+
+// ---------------------------------------------------------------- DETAIL --
+async function viewDetail(id){
+  const {job, documents} = await api(`/jobs/${id}`);
+  const cv = documents.find(d=>d.doc_type==='cv');
+  const cl = documents.find(d=>d.doc_type==='cover_letter');
+  const flags = job.fit_flags ? JSON.parse(job.fit_flags) : [];
+
+  return `<button class="backlink" id="back">&larr; Back to board</button>
+  <h2 class="pagehead">${esc(job.title)}</h2>
+  <p class="sub">${esc(job.company)}${job.location?' · '+esc(job.location):''}${job.url?` · <a href="${esc(job.url)}" target="_blank">original posting</a>`:''}</p>
+
+  <div class="panel glass">
+    <div class="row" style="align-items:center;">
+      <div><label>Status</label>
+        <select id="statusSel">${STATUSES.map(s=>`<option value="${s}" ${s===job.status?'selected':''}>${s}</option>`).join('')}</select>
+      </div>
+      ${['scraped','evaluated','drafted'].includes(job.status) ? `
+      <div>
+        <button class="btn small" id="applyBtn">Apply now →</button>
+      </div>` : job.applied_at ? `
+      <div><label>Applied</label><div style="padding-top:8px;font-size:13px;color:var(--sage);">✓ ${fmtDate(job.applied_at)}</div></div>
+      ` : ''}
+      <div>
+        <button class="btn small secondary" id="evalBtn">${job.fit_score!=null?'Re-evaluate fit':'Evaluate fit'}</button>
+      </div>
+      <div>
+        <button class="btn small secondary" id="draftBtn">${documents.length?'Re-draft documents':'Draft CV + cover letter'}</button>
+      </div>
+    </div>
+    <div id="applyMsg"></div>
+
+    <label>Experience / context for this evaluation (optional)</label>
+    <textarea id="expNote" placeholder="e.g. 6 years Python, led 2 cloud migrations, no direct fintech experience — anything you want weighed for this specific job." style="min-height:60px;"></textarea>
+    <div class="hint">Sent alongside your profile only for this evaluation — not saved to your Profile tab.</div>
+
+    <div id="actionMsg"></div>
+
+    ${job.fit_score!=null ? `
+      <div style="margin-top:18px;">
+        <label>Fit score</label>
+        <div class="fit" style="font-size:22px;">${job.fit_score} / 100</div>
+        <p style="font-size:14px;">${esc(job.fit_reasoning||'')}</p>
+        ${flags.map(f=>`<span class="flag">${esc(f)}</span>`).join('')}
+      </div>` : ''}
+
+    <label>Notes</label>
+    <textarea id="notesText" style="min-height:70px;">${esc(job.notes||'')}</textarea>
+    <button class="btn secondary small" id="saveNotes" style="margin-top:8px;">Save notes</button>
+  </div>
+
+  <div class="panel glass">
+    <h3>Job description</h3>
+    ${job.description ? `<p style="white-space:pre-wrap;font-size:13.5px;max-height:220px;overflow:auto;">${esc(job.description)}</p>` : `
+      <p class="empty" style="padding:0 0 12px;">No description yet — scraped search results are list-view summaries only.</p>
+      <button class="btn small secondary" id="fetchDescBtn">Fetch full description</button>
+      <div id="fetchDescMsg"></div>
+    `}
+  </div>
+
+  ${documents.length ? `
+  <div class="panel glass">
+    <h3>Drafted documents</h3>
+    <p class="muted" style="font-size:12.5px;margin-top:-8px;">Reviewer notes: ${esc((cv&&cv.reviewer_notes)||'')}</p>
+    <div class="docwrap">
+      <div class="doc"><label>CV (markdown)</label><textarea data-doc="${cv?cv.id:''}">${esc(cv?cv.content_markdown:'')}</textarea>
+        <button class="btn small saveDoc" data-doc="${cv?cv.id:''}" style="margin-top:8px;">Save CV</button>
+        <button class="btn small secondary downloadDoc" data-doc="${cv?cv.id:''}" data-name="${esc(job.title)}-${esc(job.company)}-CV" style="margin-top:8px;">Download CV (.md)</button></div>
+      <div class="doc"><label>Cover letter (markdown)</label><textarea data-doc="${cl?cl.id:''}">${esc(cl?cl.content_markdown:'')}</textarea>
+        <button class="btn small saveDoc" data-doc="${cl?cl.id:''}" style="margin-top:8px;">Save cover letter</button>
+        <button class="btn small secondary downloadDoc" data-doc="${cl?cl.id:''}" data-name="${esc(job.title)}-${esc(job.company)}-cover-letter" style="margin-top:8px;">Download cover letter (.md)</button></div>
+    </div>
+  </div>` : ''}
+
+  <button class="btn secondary" id="deleteJob">Delete job</button>`;
+}
+
+// ------------------------------------------------------------------ wire --
+function wireView(){
+  document.querySelectorAll('[data-open]').forEach(el=>{
+    el.addEventListener('click', ()=>{ state.view='detail'; state.jobId=el.dataset.open; render(); });
+  });
+
+  const back = document.getElementById('back');
+  if (back) back.addEventListener('click', ()=>{ state.view='board'; render(); });
+
+  const addManual = document.getElementById('addManual');
+  if (addManual) addManual.addEventListener('click', async ()=>{
+    const title = prompt('Job title?'); if(!title) return;
+    const company = prompt('Company?') || 'Unknown';
+    const description = prompt('Paste the job description:') || '';
+    await api('/jobs', {method:'POST', body: JSON.stringify({title, company, description})});
+    render();
+  });
+
+  const deleteAllJobs = document.getElementById('deleteAllJobs');
+  if (deleteAllJobs) deleteAllJobs.addEventListener('click', async ()=>{
+    const count = (await api('/jobs')).length;
+    if (!count){ return; }
+    if (!confirm(`Delete ALL ${count} job(s) and their drafted documents?\n\nThis cannot be undone. Consider creating a backup first (Backups tab).`)) return;
+    const typed = prompt(`Type DELETE to confirm wiping all ${count} job(s):`);
+    if (typed !== 'DELETE') { alert('Cancelled — text did not match.'); return; }
+    deleteAllJobs.disabled = true;
+    try{
+      await api('/jobs', {method:'DELETE'});
+      state.jobStatusFilter = null;
+      render();
+    }catch(e){ alert('Failed: ' + e.message); deleteAllJobs.disabled = false; }
+  });
+
+  document.querySelectorAll('[data-filter-status]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const val = el.dataset.filterStatus;
+      state.view = 'jobs'; state.jobStatusFilter = val || null;
+      render();
+    });
+  });
+
+  const clearFilter = document.getElementById('clearFilter');
+  if (clearFilter) clearFilter.addEventListener('click', ()=>{
+    state.jobStatusFilter = null; render();
+  });
+
+  const portalSel = document.getElementById('portal');
+  const locReqTag = document.getElementById('locReqTag');
+  if (portalSel && locReqTag) {
+    const syncLocReq = () => {
+      locReqTag.style.display = LOCATION_REQUIRED_PORTALS.includes(portalSel.value) ? 'inline' : 'none';
+    };
+    portalSel.addEventListener('change', syncLocReq);
+    syncLocReq();
+  }
+
+  const runScrape = document.getElementById('runScrape');
+  if (runScrape) runScrape.addEventListener('click', async ()=>{
+    const portal = document.getElementById('portal').value;
+    const query = document.getElementById('query').value;
+    const location = document.getElementById('location').value.trim();
+    const limit = Number(document.getElementById('limit').value)||20;
+    const age = document.getElementById('age').value;
+    const out = document.getElementById('scrapeResult');
+    if (LOCATION_REQUIRED_PORTALS.includes(portal) && !location) {
+      out.innerHTML = `<div class="notice err">This portal requires a location (e.g. "Copenhagen, Denmark" or "Remote").</div>`;
+      return;
+    }
+    out.innerHTML = '<p class="muted"><span class="spin"></span> Searching…</p>';
+    try{
+      const r = await api('/scrape', {method:'POST', body: JSON.stringify({
+        portal, query, limit,
+        job_age_days: age?Number(age):null,
+        location: location || null,
+      })});
+      const warn = (r.warnings && r.warnings.length) ? `<br><span style="opacity:.85">${r.warnings.map(esc).join('<br>')}</span>` : '';
+      out.innerHTML = `<div class="notice">Found ${r.found}, added ${r.created} new job(s), skipped ${r.skipped_duplicates} duplicate(s).${warn}</div>`;
+    }catch(e){ out.innerHTML = `<div class="notice err">${esc(e.message)}</div>`; }
+  });
+
+  const saveProfile = document.getElementById('saveProfile');
+  if (saveProfile) saveProfile.addEventListener('click', async ()=>{
+    await api('/settings', {method:'PUT', body: JSON.stringify({profile: document.getElementById('profileText').value})});
+    document.getElementById('saveMsg').textContent = 'Saved.';
+  });
+
+  const openBackupsLink = document.querySelector('[data-open-backups]');
+  if (openBackupsLink) openBackupsLink.addEventListener('click', (e)=>{
+    e.preventDefault(); state.view='backups'; render();
+  });
+
+  const createBackup = document.getElementById('createBackup');
+  if (createBackup) createBackup.addEventListener('click', async ()=>{
+    const msg = document.getElementById('backupMsg');
+    createBackup.disabled = true;
+    msg.innerHTML = '<p class="muted"><span class="spin"></span> Creating snapshot…</p>';
+    try{
+      const label = document.getElementById('backupLabel').value;
+      await api('/backups', {method:'POST', body: JSON.stringify({label: label || null})});
+      render();
+    }catch(e){ msg.innerHTML = `<div class="notice err">${esc(e.message)}</div>`; createBackup.disabled=false; }
+  });
+
+  document.querySelectorAll('.restoreBtn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const name = btn.dataset.name;
+      if (!confirm(`Restore from "${name}"?\n\nThis overwrites everything currently in the dashboard with this snapshot's contents. This cannot be undone.`)) return;
+      const msg = document.getElementById('backupMsg');
+      msg.innerHTML = '<p class="muted"><span class="spin"></span> Restoring…</p>';
+      try{
+        await api(`/backups/${encodeURIComponent(name)}/restore`, {method:'POST'});
+        msg.innerHTML = '<div class="notice">Restored. Reloading…</div>';
+        setTimeout(()=>render(), 600);
+      }catch(e){ msg.innerHTML = `<div class="notice err">${esc(e.message)}</div>`; }
+    });
+  });
+
+  document.querySelectorAll('.deleteBtn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const name = btn.dataset.name;
+      if (!confirm(`Delete backup "${name}"? This cannot be undone.`)) return;
+      await api(`/backups/${encodeURIComponent(name)}`, {method:'DELETE'});
+      render();
+    });
+  });
+
+  const restoreUpload = document.getElementById('restoreUpload');
+  if (restoreUpload) restoreUpload.addEventListener('click', async ()=>{
+    const msg = document.getElementById('restoreMsg');
+    const fileInput = document.getElementById('restoreFile');
+    const file = fileInput.files[0];
+    if (!file){ msg.innerHTML = '<div class="notice err">Choose a .db file first.</div>'; return; }
+    if (!confirm(`Restore from "${file.name}"?\n\nThis overwrites everything currently in the dashboard. This cannot be undone.`)) return;
+    restoreUpload.disabled = true;
+    msg.innerHTML = '<p class="muted"><span class="spin"></span> Uploading and restoring…</p>';
+    try{
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(API + '/restore-upload', {method:'POST', body: fd});
+      if (!res.ok){ const j = await res.json().catch(()=>({})); throw new Error(j.detail || res.statusText); }
+      msg.innerHTML = '<div class="notice">Restored. Reloading…</div>';
+      setTimeout(()=>render(), 600);
+    }catch(e){ msg.innerHTML = `<div class="notice err">${esc(e.message)}</div>`; restoreUpload.disabled=false; }
+  });
+
+  const statusSel = document.getElementById('statusSel');
+  if (statusSel) statusSel.addEventListener('change', async ()=>{
+    await api(`/jobs/${state.jobId}`, {method:'PATCH', body: JSON.stringify({status: statusSel.value})});
+    render();
+  });
+
+  const saveNotes = document.getElementById('saveNotes');
+  if (saveNotes) saveNotes.addEventListener('click', async ()=>{
+    await api(`/jobs/${state.jobId}`, {method:'PATCH', body: JSON.stringify({notes: document.getElementById('notesText').value})});
+  });
+
+  const applyBtn = document.getElementById('applyBtn');
+  if (applyBtn) applyBtn.addEventListener('click', async ()=>{
+    const msg = document.getElementById('applyMsg');
+    const {job} = await api(`/jobs/${state.jobId}`);
+    if (job.url) {
+      window.open(job.url, '_blank', 'noopener');
+    } else {
+      if (!confirm('No original posting link was saved for this job — mark it as applied anyway?')) return;
+    }
+    applyBtn.disabled = true;
+    msg.innerHTML = '<p class="muted"><span class="spin"></span> Marking as applied…</p>';
+    try{
+      await api(`/jobs/${state.jobId}`, {method:'PATCH', body: JSON.stringify({status: 'applied'})});
+      render();
+    }catch(e){ msg.innerHTML = `<div class="notice err">${esc(e.message)}</div>`; applyBtn.disabled=false; }
+  });
+
+  const evalBtn = document.getElementById('evalBtn');
+  if (evalBtn) evalBtn.addEventListener('click', async ()=>{
+    const msg = document.getElementById('actionMsg');
+    const expNoteEl = document.getElementById('expNote');
+    const experience_note = expNoteEl ? expNoteEl.value.trim() : '';
+    evalBtn.disabled = true; msg.innerHTML = '<p class="muted"><span class="spin"></span> Evaluating fit…</p>';
+    try{
+      await api(`/jobs/${state.jobId}/evaluate`, {method:'POST', body: JSON.stringify({experience_note: experience_note || null})});
+      render();
+    }
+    catch(e){ msg.innerHTML = `<div class="notice err">${esc(e.message)}</div>`; evalBtn.disabled=false; }
+  });
+
+  const draftBtn = document.getElementById('draftBtn');
+  if (draftBtn) draftBtn.addEventListener('click', async ()=>{
+    const msg = document.getElementById('actionMsg');
+    draftBtn.disabled = true; msg.innerHTML = '<p class="muted"><span class="spin"></span> Drafting + reviewing (this takes a moment)…</p>';
+    try{ await api(`/jobs/${state.jobId}/draft`, {method:'POST'}); render(); }
+    catch(e){ msg.innerHTML = `<div class="notice err">${esc(e.message)}</div>`; draftBtn.disabled=false; }
+  });
+
+  const fetchDescBtn = document.getElementById('fetchDescBtn');
+  if (fetchDescBtn) fetchDescBtn.addEventListener('click', async ()=>{
+    const msg = document.getElementById('fetchDescMsg');
+    fetchDescBtn.disabled = true; msg.innerHTML = '<p class="muted"><span class="spin"></span> Fetching…</p>';
+    try{ await api(`/jobs/${state.jobId}/fetch-description`, {method:'POST'}); render(); }
+    catch(e){ msg.innerHTML = `<div class="notice err">${esc(e.message)}</div>`; fetchDescBtn.disabled=false; }
+  });
+
+  document.querySelectorAll('.saveDoc').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.dataset.doc; if(!id) return;
+      const ta = document.querySelector(`textarea[data-doc="${id}"]`);
+      await api(`/documents/${id}`, {method:'PUT', body: JSON.stringify({content_markdown: ta.value})});
+      btn.textContent = 'Saved ✓'; setTimeout(()=>render(), 700);
+    });
+  });
+
+  document.querySelectorAll('.downloadDoc').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.doc; if(!id) return;
+      const ta = document.querySelector(`textarea[data-doc="${id}"]`);
+      const filename = safeFilename(btn.dataset.name) + '.md';
+      downloadText(filename, ta.value);
+    });
+  });
+
+  const deleteJob = document.getElementById('deleteJob');
+  if (deleteJob) deleteJob.addEventListener('click', async ()=>{
+    if (!confirm('Delete this job and its drafted documents?')) return;
+    await api(`/jobs/${state.jobId}`, {method:'DELETE'});
+    state.view='board'; render();
+  });
+}
+
+checkHealth();
+render();
+</script>
+</body>
+</html>

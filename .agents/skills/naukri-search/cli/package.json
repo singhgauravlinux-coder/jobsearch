@@ -1,0 +1,23 @@
+{
+  "name": "naukri-cli",
+  "version": "1.0.0",
+  "description": "CLI for searching jobs on Naukri.com (India). Unlike the other portal CLIs in this repo, Naukri's public search API is bot-protected (signed nkparam token + reCAPTCHA gating), so this drives a real headless Chromium via Playwright and captures the network response Naukri's own frontend JS produces, instead of reimplementing their token signing. Personal use only (Naukri ToS).",
+  "type": "module",
+  "main": "src/cli.ts",
+  "bin": {
+    "naukri-search": "src/cli.ts"
+  },
+  "scripts": {
+    "start": "bun run src/cli.ts",
+    "test": "bun test --timeout 30000",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "bunx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/bun": "1.3.14"
+  }
+}

@@ -1,0 +1,8 @@
+setup.env
+k8s/rendered/
+backups/
+backend/.venv/
+backend/__pycache__/
+backend/app/__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,5 @@
+fastapi==0.141.1
+uvicorn[standard]==0.32.0
+sqlmodel==0.0.22
+google-genai
+python-multipart==0.0.12

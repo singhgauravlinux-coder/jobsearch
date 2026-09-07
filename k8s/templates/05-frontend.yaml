@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: {{NAMESPACE}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: ai-job-search-frontend }
+  template:
+    metadata:
+      labels: { app: ai-job-search-frontend }
+    spec:
+      containers:
+        - name: frontend
+          image: {{IMAGE_FRONTEND}}
+          imagePullPolicy: {{IMAGE_PULL_POLICY}}
+          ports:
+            - containerPort: 80
+          resources:
+            requests: { cpu: "25m", memory: "32Mi" }
+            limits: { cpu: "250m", memory: "128Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: {{NAMESPACE}}
+spec:
+  selector: { app: ai-job-search-frontend }
+  ports:
+    - port: 80
+      targetPort: 80

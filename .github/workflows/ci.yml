@@ -1,0 +1,224 @@
+name: CI/CD
+
+# CI runs on every push and PR to main. On a push to main only, once CI
+# passes, two more jobs run: build+push both images to GHCR, then update the
+# live k8s Deployments to that new image tag. This does NOT run ./setup.sh
+# and does NOT touch manifests, secrets, or anything else on the node -
+# it's scoped to exactly "build, push, bump the running image" as requested.
+#
+# The image-update job needs `kubectl` access to the cluster, so it runs on
+# a self-hosted runner registered on the k3s node (see GEMINI_QUICKSTART.md).
+# The build+push job does NOT need that access and runs on a normal
+# GitHub-hosted runner instead, so it doesn't tie up your node's CPU/network
+# for the Docker build.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/ai-job-search-backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/ai-job-search-frontend
+
+jobs:
+  # ---------------------------------------------------------------- backend --
+  backend:
+    name: Backend (compile + import check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r backend/requirements.txt
+
+      - name: Byte-compile (catches syntax errors)
+        run: python -m compileall -q backend/app
+
+      - name: Import smoke test (catches missing imports / wiring errors)
+        # DATA_DIR/REPO_PATH point at throwaway dirs - db.py creates DATA_DIR
+        # on import, and REPO_PATH doesn't need to exist for the app to import.
+        # GEMINI_API_KEY unset is fine: gemini_client only requires it lazily,
+        # the first time a request actually calls the API.
+        env:
+          DATA_DIR: /tmp/ci-data
+          REPO_PATH: /tmp/ci-repo
+        working-directory: backend
+        run: python -c "from app.main import app; print('FastAPI app imported OK:', app.title)"
+
+      - name: Lint (ruff)
+        run: |
+          pip install --no-cache-dir ruff
+          ruff check backend/app
+
+  # ---------------------------------------------------- portal CLI tests --
+  cli-tests:
+    name: CLI tests (${{ matrix.portal }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        portal:
+          - jobindex-search
+          - jobnet-search
+          - jobbank-search
+          - jobdanmark-search
+          - linkedin-search
+          - freehire-search
+          - naukri-search
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: bun install
+        working-directory: .agents/skills/${{ matrix.portal }}/cli
+        # --ignore-scripts: naukri-search's postinstall downloads a ~150MB
+        # Chromium build via Playwright, which its own unit tests (parsing
+        # logic only) never exercise - skip it here to keep CI fast. No
+        # effect on the other portals, which have no postinstall script.
+        run: bun install --ignore-scripts
+
+      - name: Typecheck
+        working-directory: .agents/skills/${{ matrix.portal }}/cli
+        run: bun run typecheck
+
+      - name: Test
+        working-directory: .agents/skills/${{ matrix.portal }}/cli
+        run: bun test
+
+  # --------------------------------------------------------- k8s manifests --
+  k8s-manifests:
+    name: k8s manifest templates (render + validate YAML)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: pip install pyyaml
+        run: pip install --no-cache-dir pyyaml
+
+      - name: Render templates with dummy values + validate YAML
+        # Mirrors the render step in setup.sh: fills every {{PLACEHOLDER}},
+        # fails on any placeholder the script doesn't know about (a real bug
+        # if a manifest edit adds a new {{FOO}} without updating setup.sh),
+        # and fails if the rendered output isn't valid YAML.
+        run: |
+          python - <<'PYEOF'
+          import glob, re, sys
+          import yaml
+
+          placeholders = {
+              "NAMESPACE": "ci-namespace",
+              "INGRESS_HOST": "ci.example.com",
+              "GEMINI_MODEL": "gemini-2.5-flash",
+              "GEMINI_API_KEY": "dummy-key-for-ci",
+              "GIT_REPO_URL": "",
+              "GIT_TOKEN": "",
+              "IMAGE_BACKEND": "ai-job-search-backend:ci",
+              "IMAGE_FRONTEND": "ai-job-search-frontend:ci",
+              "IMAGE_PULL_POLICY": "IfNotPresent",
+          }
+
+          failed = False
+          for path in sorted(glob.glob("k8s/templates/*.yaml")):
+              text = open(path).read()
+
+              def sub(m):
+                  key = m.group(1)
+                  if key not in placeholders:
+                      print(f"::error file={path}::Unknown placeholder {{{{{key}}}}} - add it to setup.sh's renderer too")
+                      raise SystemExit(1)
+                  return placeholders[key]
+
+              rendered = re.sub(r"\{\{([A-Z_]+)\}\}", sub, text)
+              remaining = re.findall(r"\{\{[A-Z_]+\}\}", rendered)
+              if remaining:
+                  print(f"::error file={path}::Unfilled placeholders {remaining}")
+                  failed = True
+                  continue
+
+              try:
+                  list(yaml.safe_load_all(rendered))
+              except yaml.YAMLError as e:
+                  print(f"::error file={path}::Invalid YAML after render: {e}")
+                  failed = True
+                  continue
+
+              print(f"OK  {path}")
+
+          if failed:
+              sys.exit(1)
+          PYEOF
+
+  # ---------------------------------------------------------- build + push --
+  build-and-push:
+    name: Build & push (${{ matrix.image }})
+    needs: [backend, cli-tests, k8s-manifests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: backend
+            context: backend
+            repo: ai-job-search-backend
+          - image: frontend
+            context: frontend
+            repo: ai-job-search-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.repo }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.repo }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ------------------------------------------------- update running images --
+  update-deployment:
+    name: Update k8s deployment to new image
+    needs: build-and-push
+    runs-on: self-hosted
+    steps:
+      - name: Point backend + frontend Deployments at the new image
+        # Uses the immutable :<sha> tag (not :latest) so this is unambiguous
+        # about which exact image is running, and idempotent to re-run.
+        # imagePullPolicy in the manifests should be "Always" (registry mode)
+        # so the node actually pulls this new tag instead of reusing a cached
+        # image with the same name.
+        run: |
+          kubectl -n ai-job-search set image deployment/backend backend=${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          kubectl -n ai-job-search set image deployment/frontend frontend=${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          kubectl -n ai-job-search rollout status deployment/backend --timeout=180s
+          kubectl -n ai-job-search rollout status deployment/frontend --timeout=120s
