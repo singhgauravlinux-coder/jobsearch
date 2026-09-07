@@ -1,0 +1,15 @@
+[lint]
+ignore = [
+    # FastAPI's `Depends(...)`/`File(...)` as a function-default argument is
+    # the framework's documented, standard idiom - not the "mutable default"
+    # footgun this rule exists to catch. FastAPI's own docs recommend
+    # disabling B008 for exactly this reason.
+    "B008",
+    # This app deliberately uses naive UTC datetimes everywhere (single
+    # deployment, no multi-timezone requirement, consistent throughout
+    # models.py/main.py/backup.py) - not an oversight. Switching to
+    # timezone-aware datetimes now would touch stored data formats and
+    # comparisons across the whole app for no functional benefit here.
+    "DTZ003",
+    "DTZ004",
+]
