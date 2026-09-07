@@ -76,8 +76,7 @@ def _extract_json(text: str) -> dict:
     text = text.strip()
     if text.startswith("```"):
         text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
+        text = text.removeprefix("json")
     return json.loads(text.strip())
 
 
