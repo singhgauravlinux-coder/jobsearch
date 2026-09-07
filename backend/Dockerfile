@@ -1,4 +1,11 @@
-FROM python:3.12-slim
+FROM python:3.12-slim-bookworm
+# Pinned to bookworm (Debian 12) rather than the floating "slim" tag:
+# Playwright's `install-deps` (used below for naukri-search's headless
+# Chromium) ships a fixed per-distro package list that hasn't caught up to
+# Debian Trixie's renamed font packages (ttf-unifont, ttf-ubuntu-font-family
+# no longer exist under those names) - "slim" moved to Trixie as its default
+# once Trixie became Debian stable, breaking this build with no code change
+# on our side. Bookworm is a known-good target for Playwright's installer.
 
 # bun is needed to run the repo's portal-search CLIs (.agents/skills/*/cli)
 RUN apt-get update && apt-get install -y --no-install-recommends curl unzip ca-certificates git \
