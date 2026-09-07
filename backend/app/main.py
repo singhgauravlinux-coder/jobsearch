@@ -5,7 +5,6 @@ import shutil
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -86,8 +85,8 @@ class ScrapeIn(BaseModel):
     portal: str
     query: str
     limit: int = 20
-    job_age_days: Optional[int] = None
-    location: Optional[str] = None
+    job_age_days: int | None = None
+    location: str | None = None
 
 
 @app.get("/api/portals")
@@ -131,7 +130,7 @@ def do_scrape(body: ScrapeIn, session: Session = Depends(get_session)):
 # -------------------------------------------------------------------- jobs --
 
 @app.get("/api/jobs")
-def list_jobs(status: Optional[str] = None, search: Optional[str] = None, session: Session = Depends(get_session)):
+def list_jobs(status: str | None = None, search: str | None = None, session: Session = Depends(get_session)):
     q = select(Job)
     if status:
         q = q.where(Job.status == status)
@@ -174,8 +173,8 @@ def fetch_description(job_id: int, session: Session = Depends(get_session)):
 
 
 class JobPatch(BaseModel):
-    status: Optional[str] = None
-    notes: Optional[str] = None
+    status: str | None = None
+    notes: str | None = None
 
 
 @app.patch("/api/jobs/{job_id}")
@@ -226,8 +225,8 @@ class ManualJobIn(BaseModel):
     title: str
     company: str
     description: str
-    url: Optional[str] = None
-    location: Optional[str] = None
+    url: str | None = None
+    location: str | None = None
 
 
 @app.post("/api/jobs")
@@ -242,11 +241,12 @@ def create_job(body: ManualJobIn, session: Session = Depends(get_session)):
 # -------------------------------------------------------------- evaluate --
 
 class EvaluateIn(BaseModel):
-    experience_note: Optional[str] = None
+    experience_note: str | None = None
 
 
 @app.post("/api/jobs/{job_id}/evaluate")
-def evaluate_job(job_id: int, body: EvaluateIn = EvaluateIn(), session: Session = Depends(get_session)):
+def evaluate_job(job_id: int, body: EvaluateIn | None = None, session: Session = Depends(get_session)):
+    body = body or EvaluateIn()
     job = session.get(Job, job_id)
     if not job:
         raise HTTPException(404, "Job not found")
@@ -369,11 +369,12 @@ def export_all(session: Session = Depends(get_session)):
 # ------------------------------------------------------------------ backup --
 
 class BackupIn(BaseModel):
-    label: Optional[str] = None
+    label: str | None = None
 
 
 @app.post("/api/backups")
-def create_backup(body: BackupIn = BackupIn()):
+def create_backup(body: BackupIn | None = None):
+    body = body or BackupIn()
     try:
         return backup_mod.create_backup(body.label)
     except backup_mod.BackupError as e:
